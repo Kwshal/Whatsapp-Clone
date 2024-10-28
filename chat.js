@@ -1,7 +1,36 @@
-function loadMessages(otherUser) {
-     const chatRef = ref(db, `users/${currentUser}/chats/${otherUser}`);
+// Function to get or create a chat room between two users
+async function getChatRoomId(user1, user2) {
+     // Sort IDs to ensure consistent chat room ID
+     const sortedUsers = [user1, user2].sort();
+     const chatRoomId = `${sortedUsers[0]}_${sortedUsers[1]}`;
 
-     // Remove any existing listener before adding a new one
+     // Check if chat room exists, if not create it
+     const chatRef = ref(db, `chats/${chatRoomId}`);
+     const snapshot = await get(chatRef);
+
+     if (!snapshot.exists()) {
+          // Create new chat room with participants
+          await set(ref(db, `chats/${chatRoomId}/participants`), {
+               [user1]: true,
+               [user2]: true
+          });
+
+          // Add chat reference to both users
+          await Promise.all([
+               set(ref(db, `users/${user1}/chatRooms/${chatRoomId}`), true),
+               set(ref(db, `users/${user2}/chatRooms/${chatRoomId}`), true)
+          ]);
+     }
+
+     return chatRoomId;
+}
+
+// Updated loadMessages function
+async function loadMessages(otherUser) {
+     const chatRoomId = await getChatRoomId(currentUser, otherUser);
+     const chatRef = ref(db, `chats/${chatRoomId}/messages`);
+
+     // Remove any existing listener
      if (window.currentMessageListener) {
           window.currentMessageListener();
      }
@@ -36,6 +65,7 @@ function loadMessages(otherUser) {
      });
 }
 
+// Updated sendMessage function
 async function sendMessage() {
      if (!selectedUser) {
           alert('Please select a user to chat with first');
@@ -45,17 +75,15 @@ async function sendMessage() {
      const text = messageInput.value.trim();
      if (text) {
           try {
+               const chatRoomId = await getChatRoomId(currentUser, selectedUser);
                const messageData = {
                     text: text,
                     sender: currentUser,
                     timestamp: Date.now()
                };
 
-               // Save message in both users' chats
-               await Promise.all([
-                    push(ref(db, `users/${currentUser}/chats/${selectedUser}`), messageData),
-                    push(ref(db, `users/${selectedUser}/chats/${currentUser}`), messageData)
-               ]);
+               // Save message in the chat room
+               await push(ref(db, `chats/${chatRoomId}/messages`), messageData);
 
                // Clear input
                messageInput.value = '';
