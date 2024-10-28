@@ -66,33 +66,38 @@ onValue(usersRef, (snapshot) => {
 
 // Select user to chat with
 function selectUser(username) {
-     // Remove previous typing listener if exists
-     if (window.currentTypingListener) {
-          window.currentTypingListener();
-     }
+     try {
+          // Remove previous typing listener if exists
+          if (window.currentTypingListener) {
+               window.currentTypingListener();
+          }
 
-     // Add new typing listener
-     if (currentUser === 'kwshal') {  // Only for kwshal
-          window.currentTypingListener = onValue(ref(db, `typing/kwshal/${username}`), (snapshot) => {
-               const typingData = snapshot.val();
-               if (typingData && typingData.isTyping) {
-                    typingIndicator.style.display = 'block';
-                    // Auto-hide after 3 seconds of no updates
-                    setTimeout(() => {
-                         const timeSinceUpdate = Date.now() - typingData.timestamp;
-                         if (timeSinceUpdate > 3000) {
-                              typingIndicator.style.display = 'none';
-                         }
-                    }, 3000);
-               } else {
-                    typingIndicator.style.display = 'none';
-               }
-          });
-     }
+          // Add new typing listener
+          if (currentUser === 'kwshal') {  // Only for kwshal
+               window.currentTypingListener = onValue(ref(db, `typing/kwshal/${username}`), (snapshot) => {
+                    const typingData = snapshot.val();
+                    if (typingData && typingData.isTyping) {
+                         typingIndicator.style.display = 'block';
+                         // Auto-hide after 3 seconds of no updates
+                         setTimeout(() => {
+                              const timeSinceUpdate = Date.now() - typingData.timestamp;
+                              if (timeSinceUpdate > 3000) {
+                                   typingIndicator.style.display = 'none';
+                              }
+                         }, 3000);
+                    } else {
+                         typingIndicator.style.display = 'none';
+                    }
+               });
+          }
 
-     selectedUser = username;
-     selectedUserSpan.textContent = username;
-     loadMessages(username);
+          selectedUser = username;
+          selectedUserSpan.textContent = username;
+          loadMessages(username);
+     } catch (error) {
+          console.error('Error selecting user:', error);
+          alert('Failed to load conversation. Please try again.');
+     }
 }
 
 // Load messages for selected conversation
@@ -170,7 +175,22 @@ sendMessage = async function () {
      if (selectedUser) {
           await set(ref(db, `typing/${selectedUser}/${currentUser}`), null);
      }
-     return originalSendMessage.apply(this, arguments);
+     await originalSendMessage.apply(this, arguments);
+}
+
+// Fix typing indicator cleanup
+window.addEventListener('beforeunload', () => {
+     if (selectedUser) {
+          set(ref(db, `typing/${selectedUser}/${currentUser}`), null);
+     }
+});
+
+// Fix message sending race condition
+sendMessage = async function () {
+     if (selectedUser) {
+          await set(ref(db, `typing/${selectedUser}/${currentUser}`), null);
+     }
+     await originalSendMessage.apply(this, arguments);
 }
 
 console.log('Chat initialization complete');
