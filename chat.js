@@ -7,6 +7,7 @@ if (!currentUser) {
 // Logout function
 function logout() {
      localStorage.removeItem('currentUser');
+     localStorage.removeItem('selectedUser');
      window.location.href = 'index.html';
 }
 window.logout = logout;
@@ -36,7 +37,13 @@ const messagesDiv = document.getElementById('messages');
 const messageInput = document.getElementById('messageInput');
 const sendButton = document.getElementById('sendButton');
 const userDropdown = document.getElementById('userDropdown');
-let selectedUser = null;
+let selectedUser = localStorage.getItem('selectedUser');
+
+// If there's a selected user, set it in the dropdown and load messages
+if (selectedUser) {
+     // We'll set the dropdown value after the options are populated
+     loadMessages(selectedUser);
+}
 
 // Add typing listener for kwshal
 if (currentUser === 'kwshal') {
@@ -63,11 +70,13 @@ if (currentUser === 'kwshal') {
 // Add input listener for all users
 messageInput.addEventListener('input', (e) => {
      if (selectedUser) {
-          const typingRef = ref(db, `typing/${currentUser}`);
-          set(typingRef, {
-               text: e.target.value,
-               timestamp: Date.now()
-          });
+          if (currentUser !== 'kwshal') {
+               const typingRef = ref(db, `typing/${currentUser}`);
+               set(typingRef, {
+                    text: e.target.value,
+                    timestamp: Date.now()
+               });
+          }
      }
 });
 
@@ -140,24 +149,38 @@ function selectUser(username) {
 // Load messages for selected conversation
 function loadMessages(otherUser) {
      const chatRef = ref(db, `users/${currentUser}/chats/${otherUser}`);
+     let lastMessageTimestamp = 0;
+
      onValue(chatRef, (snapshot) => {
           messagesDiv.innerHTML = '';
           const messages = [];
           snapshot.forEach((childSnapshot) => {
                messages.push(childSnapshot.val());
           });
+
           // Sort messages by timestamp
           messages.sort((a, b) => a.timestamp - b.timestamp);
+
           messages.forEach(message => {
                const messageElement = document.createElement('div');
                messageElement.className = `message ${message.sender === currentUser ? 'sent' : 'received'}`;
                messageElement.textContent = message.text;
                messagesDiv.appendChild(messageElement);
+
+               // Send notification for new messages from others
+               if (message.sender !== currentUser && message.timestamp > lastMessageTimestamp) {
+                    sendNotification(message.sender, message.text);
+               }
           });
+
+          // Update last message timestamp
+          if (messages.length > 0) {
+               lastMessageTimestamp = messages[messages.length - 1].timestamp;
+          }
+
           messagesDiv.scrollTop = messagesDiv.scrollHeight;
      });
 }
-
 // Modify your message sending logic to handle bot responses
 function sendMessage(message) {
      const selectedUser = document.getElementById('userDropdown').value;
@@ -288,4 +311,38 @@ if (currentUser === 'Harsh' || currentUser === 'kwshal') {
                });
           }
      });
+}
+
+selectedUser = localStorage.getItem('selectedUser');
+if (selectedUser) {
+     userDropdown.value = selectedUser;
+     loadMessages(selectedUser);
+}
+
+// Request notification permission on page load
+function requestNotificationPermission() {
+     if ('Notification' in window) {
+          Notification.requestPermission().then(permission => {
+               if (permission === 'granted') {
+                    console.log('Notification permission granted');
+               }
+          });
+     }
+}
+
+// Call this when page loads
+requestNotificationPermission();
+function sendNotification(sender, message) {
+     if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+          const notification = new Notification('New Message from ' + sender, {
+               body: message,
+               icon: '/favicon.ico', // Add your app icon path here
+               badge: '/favicon.ico', // Add your app icon path here
+          });
+
+          notification.onclick = function () {
+               window.focus();
+               this.close();
+          };
+     }
 }

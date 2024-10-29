@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (username) {
                // Should add password validation here
                localStorage.setItem('currentUser', username);
-               window.location.href = 'chat.html';
+               window.location.href = 'home.html';
           } else {
                alert('Please enter a username');
           }
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (username) {
                // For now, just do the same as login
                localStorage.setItem('currentUser', username);
-               window.location.href = 'chat.html';
+               window.location.href = 'home.html';
           } else {
                alert('Please enter a username');
           }
