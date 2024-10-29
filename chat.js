@@ -1,72 +1,99 @@
-// Function to get or create a chat room between two users
-async function getChatRoomId(user1, user2) {
-     // Sort IDs to ensure consistent chat room ID
-     const sortedUsers = [user1, user2].sort();
-     const chatRoomId = `${sortedUsers[0]}_${sortedUsers[1]}`;
-
-     // Check if chat room exists, if not create it
-     const chatRef = ref(db, `chats/${chatRoomId}`);
-     const snapshot = await get(chatRef);
-
-     if (!snapshot.exists()) {
-          // Create new chat room with participants
-          await set(ref(db, `chats/${chatRoomId}/participants`), {
-               [user1]: true,
-               [user2]: true
-          });
-
-          // Add chat reference to both users
-          await Promise.all([
-               set(ref(db, `users/${user1}/chatRooms/${chatRoomId}`), true),
-               set(ref(db, `users/${user2}/chatRooms/${chatRoomId}`), true)
-          ]);
-     }
-
-     return chatRoomId;
+// Check for logged in user
+const currentUser = localStorage.getItem('currentUser');
+if (!currentUser) {
+     window.location.href = 'index.html';
 }
 
-// Updated loadMessages function
-async function loadMessages(otherUser) {
-     const chatRoomId = await getChatRoomId(currentUser, otherUser);
-     const chatRef = ref(db, `chats/${chatRoomId}/messages`);
+// Logout function
+function logout() {
+     localStorage.removeItem('currentUser');
+     window.location.href = 'index.html';
+}
+window.logout = logout;
 
-     // Remove any existing listener
-     if (window.currentMessageListener) {
-          window.currentMessageListener();
+// Firebase imports
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getDatabase, ref, push, onValue, set } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+// Firebase configuration
+const firebaseConfig = {
+     apiKey: "AIzaSyCHKs8Mtt0tH1d0SfBcY8T1_y5DV7DdzLE",
+     authDomain: "kloned-whatsapp.firebaseapp.com",
+     projectId: "kloned-whatsapp",
+     storageBucket: "kloned-whatsapp.appspot.com",
+     messagingSenderId: "1023505189291",
+     appId: "1:1023505189291:web:badbb63366eeac9e0e2aee",
+     databaseURL: "https://kloned-whatsapp-default-rtdb.asia-southeast1.firebasedatabase.app/"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Get DOM elements
+const messagesDiv = document.getElementById('messages');
+const messageInput = document.getElementById('messageInput');
+const sendButton = document.getElementById('sendButton');
+const userDropdown = document.getElementById('userDropdown');
+let selectedUser = null;
+
+// Listen for available users
+const usersRef = ref(db, 'users');
+onValue(usersRef, (snapshot) => {
+     const currentSelection = userDropdown.value; // Store current selection
+     userDropdown.innerHTML = '<option value="">Select a user</option>';
+     snapshot.forEach((childSnapshot) => {
+          const username = childSnapshot.key;
+          if (username !== currentUser) {
+               const option = document.createElement('option');
+               option.value = username;
+               option.textContent = username;
+               // Set selected attribute if this was the previously selected user
+               if (username === currentSelection) {
+                    option.selected = true;
+               }
+               userDropdown.appendChild(option);
+          }
+     });
+});
+
+// Add dropdown change listener
+userDropdown.addEventListener('change', (e) => {
+     const selectedUsername = e.target.value;
+     if (selectedUsername) {
+          selectUser(selectedUsername);
      }
+});
 
-     window.currentMessageListener = onValue(chatRef, (snapshot) => {
-          console.log('Loading messages');
+// Select user to chat with
+function selectUser(username) {
+     selectedUser = username;
+     loadMessages(username);
+}
+
+// Load messages for selected conversation
+function loadMessages(otherUser) {
+     const chatRef = ref(db, `users/${currentUser}/chats/${otherUser}`);
+     onValue(chatRef, (snapshot) => {
           messagesDiv.innerHTML = '';
-
+          const messages = [];
           snapshot.forEach((childSnapshot) => {
-               const message = childSnapshot.val();
+               messages.push(childSnapshot.val());
+          });
+          // Sort messages by timestamp
+          messages.sort((a, b) => a.timestamp - b.timestamp);
+          messages.forEach(message => {
                const messageElement = document.createElement('div');
                messageElement.className = `message ${message.sender === currentUser ? 'sent' : 'received'}`;
-
-               // Create message content
-               const messageText = document.createElement('div');
-               messageText.className = 'message-text';
-               messageText.textContent = message.text;
-
-               // Create timestamp
-               const timestamp = document.createElement('div');
-               timestamp.className = 'message-timestamp';
-               timestamp.textContent = new Date(message.timestamp).toLocaleTimeString();
-
-               // Append elements
-               messageElement.appendChild(messageText);
-               messageElement.appendChild(timestamp);
+               messageElement.textContent = message.text;
                messagesDiv.appendChild(messageElement);
           });
-
-          // Scroll to bottom after new messages
           messagesDiv.scrollTop = messagesDiv.scrollHeight;
      });
 }
 
-// Updated sendMessage function
-async function sendMessage() {
+// Send message function
+function sendMessage() {
      if (!selectedUser) {
           alert('Please select a user to chat with first');
           return;
@@ -74,22 +101,30 @@ async function sendMessage() {
 
      const text = messageInput.value.trim();
      if (text) {
-          try {
-               const chatRoomId = await getChatRoomId(currentUser, selectedUser);
-               const messageData = {
-                    text: text,
-                    sender: currentUser,
-                    timestamp: Date.now()
-               };
+          const messageData = {
+               text: text,
+               sender: currentUser,
+               timestamp: Date.now()
+          };
 
-               // Save message in the chat room
-               await push(ref(db, `chats/${chatRoomId}/messages`), messageData);
+          // Save message in current user's chat
+          push(ref(db, `users/${currentUser}/chats/${selectedUser}`), messageData);
+          // Save message in recipient's chat
+          push(ref(db, `users/${selectedUser}/chats/${currentUser}`), messageData);
 
-               // Clear input
-               messageInput.value = '';
-          } catch (error) {
-               console.error('Error sending message:', error);
-               alert('Failed to send message. Please try again.');
-          }
+          // Clear input
+          messageInput.value = '';
      }
 }
+
+// Event listeners
+sendButton.addEventListener('click', sendMessage);
+messageInput.addEventListener('keypress', (e) => {
+     if (e.key === 'Enter') {
+          sendMessage();
+     }
+});
+
+// Register current user in users list
+const userRef = ref(db, `users/${currentUser}`);
+set(userRef, { lastSeen: Date.now() }); // Use set instead of push for user registration

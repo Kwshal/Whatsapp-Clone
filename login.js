@@ -8,9 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
      loginButton.addEventListener('click', () => {
           const username = usernameInput.value.trim();
           if (username) {
-               // Store username in localStorage
+               // Should add password validation here
                localStorage.setItem('currentUser', username);
-               // Redirect to chat page
                window.location.href = 'chat.html';
           } else {
                alert('Please enter a username');
