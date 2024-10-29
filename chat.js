@@ -40,25 +40,32 @@ let selectedUser = null;
 // Create typing indicator element
 const typingIndicator = document.createElement('div');
 typingIndicator.className = 'kwshal-secret-indicator';
-typingIndicator.style.display = 'none';
-messagesDiv.appendChild(typingIndicator);
+typingIndicator.style.display = currentUser === 'kwshal' ? 'block' : 'none';
+document.body.appendChild(typingIndicator);
 
 // Add typing listener for kwshal
 if (currentUser === 'kwshal') {
-     messageInput.addEventListener('focus', () => {
+     const updateTypingStatus = () => {
           if (selectedUser) {
                const typingRef = ref(db, `typing/${selectedUser}`);
                onValue(typingRef, (snapshot) => {
                     const typingData = snapshot.val();
                     if (typingData && typingData.text) {
                          typingIndicator.textContent = `${selectedUser} is typing: ${typingData.text}`;
-                         typingIndicator.style.display = 'block';
                     } else {
-                         typingIndicator.style.display = 'none';
+                         typingIndicator.textContent = `${selectedUser || 'No user'} is not typing`;
                     }
                });
+          } else {
+               typingIndicator.textContent = 'Please select a user to see their typing status';
           }
-     });
+     };
+
+     // Update status when user is selected
+     userDropdown.addEventListener('change', updateTypingStatus);
+
+     // Initial status update
+     updateTypingStatus();
 }
 
 // Add input listener for all users
