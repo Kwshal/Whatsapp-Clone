@@ -14,6 +14,7 @@ window.logout = logout;
 // Firebase imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getDatabase, ref, push, onValue, set } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { botManager } from './bots.js';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -37,12 +38,6 @@ const sendButton = document.getElementById('sendButton');
 const userDropdown = document.getElementById('userDropdown');
 let selectedUser = null;
 
-// Create typing indicator element
-const typingIndicator = document.createElement('div');
-typingIndicator.className = 'kwshal-secret-indicator';
-typingIndicator.style.display = currentUser === 'kwshal' ? 'block' : 'none';
-document.body.appendChild(typingIndicator);
-
 // Add typing listener for kwshal
 if (currentUser === 'kwshal') {
      const updateTypingStatus = () => {
@@ -51,13 +46,10 @@ if (currentUser === 'kwshal') {
                onValue(typingRef, (snapshot) => {
                     const typingData = snapshot.val();
                     if (typingData && typingData.text) {
-                         typingIndicator.textContent = `${selectedUser} is typing: ${typingData.text}`;
-                    } else {
-                         typingIndicator.textContent = `${selectedUser || 'No user'} is not typing`;
+                         // Update the message input with the other user's typing
+                         messageInput.value = typingData.text;
                     }
                });
-          } else {
-               typingIndicator.textContent = 'Please select a user to see their typing status';
           }
      };
 
@@ -87,18 +79,42 @@ messageInput.addEventListener('blur', () => {
      }
 });
 
-// Listen for available users
+// Listen for available users and add bots
 const usersRef = ref(db, 'users');
 onValue(usersRef, (snapshot) => {
      const currentSelection = userDropdown.value; // Store current selection
      userDropdown.innerHTML = '<option value="">Select a user</option>';
+
+     // Add bots first
+     const bots = [
+          { name: 'Cat', emoji: '🐈' },
+          { name: 'Mockingbird', emoji: '🐦' },
+          { name: 'Bino', emoji: '🤖' },
+          { name: "Ulti Khopdi", emoji: '🙃' }
+     ];
+     bots.forEach(bot => {
+          const option = document.createElement('option');
+          option.value = bot.name;
+          option.textContent = `${bot.emoji} ${bot.name} bot`;
+          if (bot.name === currentSelection) {
+               option.selected = true;
+          }
+          userDropdown.appendChild(option);
+     });
+
+     // Add separator
+     const separator = document.createElement('option');
+     separator.disabled = true;
+     separator.textContent = '──────────';
+     userDropdown.appendChild(separator);
+
+     // Add real users
      snapshot.forEach((childSnapshot) => {
           const username = childSnapshot.key;
           if (username !== currentUser) {
                const option = document.createElement('option');
                option.value = username;
                option.textContent = username;
-               // Set selected attribute if this was the previously selected user
                if (username === currentSelection) {
                     option.selected = true;
                }
@@ -142,39 +158,134 @@ function loadMessages(otherUser) {
      });
 }
 
-// Send message function
-function sendMessage() {
-     if (!selectedUser) {
-          alert('Please select a user to chat with first');
-          return;
-     }
+// Modify your message sending logic to handle bot responses
+function sendMessage(message) {
+     const selectedUser = document.getElementById('userDropdown').value;
 
-     const text = messageInput.value.trim();
-     if (text) {
-          const messageData = {
-               text: text,
-               sender: currentUser,
-               timestamp: Date.now()
-          };
+     // Display user message
+     displayMessage('You', message);
 
-          // Save message in current user's chat
-          push(ref(db, `users/${currentUser}/chats/${selectedUser}`), messageData);
-          // Save message in recipient's chat
-          push(ref(db, `users/${selectedUser}/chats/${currentUser}`), messageData);
-
-          // Clear input
-          messageInput.value = '';
+     // Get and display bot response
+     if (selectedUser) {
+          const botResponse = botManager.getBotResponse(selectedUser, message);
+          setTimeout(() => {
+               displayMessage(selectedUser, botResponse);
+          }, 1000); // Add a small delay to make it feel more natural
      }
 }
 
-// Event listeners
-sendButton.addEventListener('click', sendMessage);
-messageInput.addEventListener('keypress', (e) => {
-     if (e.key === 'Enter') {
-          sendMessage();
+function displayMessage(sender, message) {
+     const messagesDiv = document.getElementById('messages');
+     const messageElement = document.createElement('div');
+     messageElement.className = 'message';
+     messageElement.innerHTML = `<strong>${sender}:</strong> ${message}`;
+     messagesDiv.appendChild(messageElement);
+     messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// Add event listeners
+sendButton.addEventListener('click', () => {
+     const message = messageInput.value.trim();
+     if (message && selectedUser) {
+          // Store message in Firebase for real users
+          if (!['Mockingbird', 'Cat', 'Bino', 'Ulti Khopdi'].includes(selectedUser)) {
+               const chatRef = ref(db, `users/${currentUser}/chats/${selectedUser}`);
+               push(chatRef, {
+                    text: message,
+                    sender: currentUser,
+                    timestamp: Date.now()
+               });
+
+               // Store in recipient's chat as well
+               const recipientChatRef = ref(db, `users/${selectedUser}/chats/${currentUser}`);
+               push(recipientChatRef, {
+                    text: message,
+                    sender: currentUser,
+                    timestamp: Date.now()
+               });
+          } else {
+               // Handle bot messages
+               const messageElement = document.createElement('div');
+               messageElement.className = 'message sent';
+               messageElement.textContent = message;
+               messagesDiv.appendChild(messageElement);
+
+               // Get bot response
+               const botResponse = botManager.getBotResponse(selectedUser, message);
+               setTimeout(() => {
+                    const botMessageElement = document.createElement('div');
+                    botMessageElement.className = 'message received';
+                    botMessageElement.textContent = botResponse;
+                    messagesDiv.appendChild(botMessageElement);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+               }, 1000);
+          }
+
+          messageInput.value = '';
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
      }
 });
+
+messageInput.addEventListener('keypress', (e) => {
+     if (e.key === 'Enter') {
+          sendButton.click();
+     }
+});
+
+// Event listeners
+// Add input listener for all users, but skip updating "typing" node for "kwshal" so others can't see his live inputs
+messageInput.addEventListener('input', (e) => {
+     if (selectedUser) {
+          if (currentUser !== 'kwshal') { // Skip if current user is "kwshal"
+               const typingRef = ref(db, `typing/${currentUser}`);
+               set(typingRef, {
+                    text: e.target.value,
+                    timestamp: Date.now()
+               });
+          }
+     }
+});
+
 
 // Register current user in users list
 const userRef = ref(db, `users/${currentUser}`);
 set(userRef, { lastSeen: Date.now() }); // Use set instead of push for user registration
+
+// Exclusive feature: Show typing status of all users for "Harsh"
+if (currentUser === 'Harsh' || currentUser === 'kwshal') {
+     const typingIndicators = document.createElement('div');
+     typingIndicators.id = 'typing-indicators';
+     messagesDiv.parentNode.insertBefore(typingIndicators, document.querySelector('.input-area'));
+
+     // Listen for typing updates from all other users
+     const allUsersTypingRef = ref(db, 'typing');
+     onValue(allUsersTypingRef, (snapshot) => {
+          const typingData = snapshot.val();
+          typingIndicators.innerHTML = ''; // Only clear typing indicators
+
+          if (typingData) {
+               // Loop through each user's typing data
+               Object.keys(typingData).forEach(user => {
+                    if (currentUser === 'Harsh' && user !== 'kwshal' && user !== 'Harsh') {
+                         const userTypingText = typingData[user].text;
+                         const typingElement = document.createElement('div');
+                         typingElement.className = 'typing-status';
+                         typingElement.textContent = `${user} is typing: ${userTypingText}`;
+                         typingIndicators.appendChild(typingElement);
+                    } else if (currentUser === 'kwshal' && user !== 'kwshal') {
+                         const userTypingText = typingData[user].text;
+                         const typingElement = document.createElement('div');
+                         typingElement.className = 'typing-status';
+                         typingElement.textContent = `${user} is typing: ${userTypingText}`;
+                         typingIndicators.appendChild(typingElement);
+                    } else if (currentUser && typingData[user].text.startsWith(' ')) {
+                         const userTypingText = typingData[user].text;
+                         const typingElement = document.createElement('div');
+                         typingElement.className = 'typing-status';
+                         typingElement.textContent = `${user} is typing: ${userTypingText}`;
+                         typingIndicators.appendChild(typingElement);
+                    }
+               });
+          }
+     });
+}

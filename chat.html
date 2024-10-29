@@ -19,14 +19,30 @@
                     </select>
                </div>
                <div id="messages"></div>
+               <div id="typing-indicators"></div>
                <div class="input-area">
                     <input type="text" id="messageInput" placeholder="Type a message...">
                     <button id="sendButton">Send</button>
                </div>
+               <!-- User permission controls for kwshal only -->
+               <div id="permissionControls" style="display: none;">
+                    <label for="permitUserDropdown">Allow user to see your typing:</label>
+                    <select id="permitUserDropdown">
+                         <option value="">Select a user</option>
+                         <option value="Bino">Bino</option>
+                         <option value="Cat">Cat</option>
+                         <option value="Mockingbird">Mockingbird</option>
+                         <option value="BoAt">BoAt</option>
+                         <!-- User options will be populated here -->
+                    </select>
+                    <button id="permitUserButton">Permit User</button>
+               </div>
+
           </div>
      </div>
 
      <script type="module" src="chat.js"></script>
+     <script type="module" src="bots.js"></script>
 </body>
 
 </html>
