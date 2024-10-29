@@ -46,15 +46,23 @@ if (selectedUser) {
 }
 
 // Add typing listener for kwshal
+// Add typing listener for kwshal
 if (currentUser === 'kwshal') {
      const updateTypingStatus = () => {
           if (selectedUser) {
                const typingRef = ref(db, `typing/${selectedUser}`);
                onValue(typingRef, (snapshot) => {
                     const typingData = snapshot.val();
+                    // Don't update input field for kwshal
+                    const typingIndicators = document.getElementById('typing-indicators');
                     if (typingData && typingData.text) {
-                         // Update the message input with the other user's typing
-                         messageInput.value = typingData.text;
+                         const typingElement = document.createElement('div');
+                         typingElement.className = 'typing-status';
+                         typingElement.textContent = `${selectedUser} is typing: ${typingData.text}`;
+                         typingIndicators.innerHTML = '';
+                         typingIndicators.appendChild(typingElement);
+                    } else {
+                         typingIndicators.innerHTML = '';
                     }
                });
           }
@@ -62,11 +70,8 @@ if (currentUser === 'kwshal') {
 
      // Update status when user is selected
      userDropdown.addEventListener('change', updateTypingStatus);
-
-     // Initial status update
      updateTypingStatus();
 }
-
 // Add input listener for all users
 messageInput.addEventListener('input', (e) => {
      if (selectedUser) {
@@ -149,7 +154,7 @@ function selectUser(username) {
 // Load messages for selected conversation
 function loadMessages(otherUser) {
      const chatRef = ref(db, `users/${currentUser}/chats/${otherUser}`);
-     let lastMessageTimestamp = 0;
+     let lastMessageTimestamp = Date.now(); // Start from current time
 
      onValue(chatRef, (snapshot) => {
           messagesDiv.innerHTML = '';
@@ -167,21 +172,20 @@ function loadMessages(otherUser) {
                messageElement.textContent = message.text;
                messagesDiv.appendChild(messageElement);
 
-               // Send notification for new messages from others
+               // Only notify for new messages from others
                if (message.sender !== currentUser && message.timestamp > lastMessageTimestamp) {
                     sendNotification(message.sender, message.text);
                }
           });
 
-          // Update last message timestamp
+          // Update timestamp after processing messages
           if (messages.length > 0) {
                lastMessageTimestamp = messages[messages.length - 1].timestamp;
           }
 
           messagesDiv.scrollTop = messagesDiv.scrollHeight;
      });
-}
-// Modify your message sending logic to handle bot responses
+}// Modify your message sending logic to handle bot responses
 function sendMessage(message) {
      const selectedUser = document.getElementById('userDropdown').value;
 
@@ -320,29 +324,56 @@ if (selectedUser) {
 }
 
 // Request notification permission on page load
-function requestNotificationPermission() {
-     if ('Notification' in window) {
-          Notification.requestPermission().then(permission => {
-               if (permission === 'granted') {
-                    console.log('Notification permission granted');
-               }
-          });
+async function requestNotificationPermission() {
+     if (!('Notification' in window)) {
+          console.log('This browser does not support notifications');
+          return;
+     }
+
+     try {
+          const permission = await Notification.requestPermission();
+          if (permission === 'granted') {
+               console.log('Notification permission granted');
+          } else if (permission === 'denied') {
+               console.log('Notification permission denied');
+          }
+     } catch (error) {
+          console.error('Error requesting notification permission:', error);
      }
 }
-
 // Call this when page loads
 requestNotificationPermission();
 function sendNotification(sender, message) {
-     if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-          const notification = new Notification('New Message from ' + sender, {
-               body: message,
-               icon: '/favicon.ico', // Add your app icon path here
-               badge: '/favicon.ico', // Add your app icon path here
-          });
+     // Check if we're not already on the page and notifications are supported
+     if (!('Notification' in window)) {
+          return;
+     }
 
-          notification.onclick = function () {
-               window.focus();
-               this.close();
-          };
+     // Only show notification if the window is not focused or is hidden
+     if (Notification.permission === 'granted' && (document.hidden || !document.hasFocus())) {
+          try {
+               const notification = new Notification('New Message from ' + sender, {
+                    body: message,
+                    icon: 'https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg', // Using WhatsApp icon as fallback
+                    badge: 'https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg',
+                    vibrate: [200, 100, 200],
+                    tag: 'message-' + sender, // Prevents duplicate notifications
+                    renotify: true
+               });
+
+               notification.onclick = function () {
+                    window.focus();
+                    this.close();
+               };
+
+               // Auto close after 5 seconds
+               setTimeout(() => notification.close(), 5000);
+          } catch (error) {
+               console.error('Error creating notification:', error);
+          }
      }
 }
+// Request notification permission when user interacts with the page
+document.addEventListener('click', function () {
+     requestNotificationPermission();
+}, { once: true }); // Only request once
