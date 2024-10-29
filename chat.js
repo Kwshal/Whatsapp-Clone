@@ -37,6 +37,49 @@ const sendButton = document.getElementById('sendButton');
 const userDropdown = document.getElementById('userDropdown');
 let selectedUser = null;
 
+// Create typing indicator element
+const typingIndicator = document.createElement('div');
+typingIndicator.className = 'kwshal-secret-indicator';
+typingIndicator.style.display = 'none';
+messagesDiv.appendChild(typingIndicator);
+
+// Add typing listener for kwshal
+if (currentUser === 'kwshal') {
+     messageInput.addEventListener('focus', () => {
+          if (selectedUser) {
+               const typingRef = ref(db, `typing/${selectedUser}`);
+               onValue(typingRef, (snapshot) => {
+                    const typingData = snapshot.val();
+                    if (typingData && typingData.text) {
+                         typingIndicator.textContent = `${selectedUser} is typing: ${typingData.text}`;
+                         typingIndicator.style.display = 'block';
+                    } else {
+                         typingIndicator.style.display = 'none';
+                    }
+               });
+          }
+     });
+}
+
+// Add input listener for all users
+messageInput.addEventListener('input', (e) => {
+     if (selectedUser) {
+          const typingRef = ref(db, `typing/${currentUser}`);
+          set(typingRef, {
+               text: e.target.value,
+               timestamp: Date.now()
+          });
+     }
+});
+
+// Clear typing status when input is cleared or message is sent
+messageInput.addEventListener('blur', () => {
+     if (selectedUser) {
+          const typingRef = ref(db, `typing/${currentUser}`);
+          set(typingRef, null);
+     }
+});
+
 // Listen for available users
 const usersRef = ref(db, 'users');
 onValue(usersRef, (snapshot) => {
