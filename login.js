@@ -18,14 +18,33 @@ document.addEventListener('DOMContentLoaded', () => {
      const usernameInput = document.getElementById('username');
      const passwordInput = document.getElementById('password');
 
-     loginButton.addEventListener('click', () => {
+     loginButton.addEventListener('click', async () => {
           const username = usernameInput.value.trim();
-          if (username) {
-               // Should add password validation here
+          const password = passwordInput.value.trim();
+
+          if (!username || !password) {
+               alert('Please enter both username and password');
+               return;
+          }
+
+          try {
+               // Check if user exists
+               const userRef = ref(db, `users/${username}`);
+               const snapshot = await get(userRef);
+
+               if (!snapshot.exists()) {
+                    alert('User not found. Please register first.');
+                    return;
+               }
+
+               // Here you should add proper password validation
+               // For now, we'll just check if the user exists
                localStorage.setItem('currentUser', username);
                window.location.href = 'home.html';
-          } else {
-               alert('Please enter a username');
+
+          } catch (error) {
+               console.error('Login error:', error);
+               alert('Login failed. Please try again.');
           }
      });
 
