@@ -214,8 +214,8 @@ function displayMessage(sender, message) {
 sendButton.addEventListener('click', () => {
      const message = messageInput.value.trim();
      if (message && selectedUser) {
-          // Store message in Firebase for real users
           if (!['Mockingbird', 'Cat', 'Bino', 'Ulti Khopdi'].includes(selectedUser)) {
+               // Store message in Firebase for real users
                const chatRef = ref(db, `users/${currentUser}/chats/${selectedUser}`);
                push(chatRef, {
                     text: message,
@@ -249,6 +249,8 @@ sendButton.addEventListener('click', () => {
           }
 
           messageInput.value = '';
+          const typingRef = ref(db, `typing/${currentUser}`);
+          set(typingRef, null);
           messagesDiv.scrollTop = messagesDiv.scrollHeight;
      }
 });
@@ -261,17 +263,6 @@ messageInput.addEventListener('keypress', (e) => {
 
 // Event listeners
 // Add input listener for all users, but skip updating "typing" node for "kwshal" so others can't see his live inputs
-messageInput.addEventListener('input', (e) => {
-     if (selectedUser) {
-          if (currentUser !== 'kwshal') { // Skip if current user is "kwshal"
-               const typingRef = ref(db, `typing/${currentUser}`);
-               set(typingRef, {
-                    text: e.target.value,
-                    timestamp: Date.now()
-               });
-          }
-     }
-});
 
 
 // Register current user in users list

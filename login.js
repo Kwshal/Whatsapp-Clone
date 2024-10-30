@@ -4,7 +4,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebas
 
 // Your Firebase configuration (copy from chat.js)
 const firebaseConfig = {
-     // Add your Firebase config here
+     apiKey: "AIzaSyCHKs8Mtt0tH1d0SfBcY8T1_y5DV7DdzLE",
+     authDomain: "kloned-whatsapp.firebaseapp.com",
+     projectId: "kloned-whatsapp",
+     storageBucket: "kloned-whatsapp.appspot.com",
+     messagingSenderId: "1023505189291",
+     appId: "1:1023505189291:web:badbb63366eeac9e0e2aee",
+     databaseURL: "https://kloned-whatsapp-default-rtdb.asia-southeast1.firebasedatabase.app/"
 };
 
 // Initialize Firebase
